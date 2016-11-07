@@ -1,5 +1,5 @@
 ---
-title: "Rviews R + finance post"
+title: "Sharpe Ratio"
 output: html_notebook
 ---
 
