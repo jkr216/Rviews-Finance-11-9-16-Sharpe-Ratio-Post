@@ -23,10 +23,9 @@ library(dygraphs)
 # Function to calculate monthly returns on a stock 
 monthly_stock_returns <- function(ticker, start_year) {
   # Download the data from Yahoo finance
-  symbol <- getSymbols(ticker, src = 'yahoo', auto.assign = FALSE, warnings = FALSE) 
+  symbol <- getSymbols(ticker, src = 'yahoo', from = start_year, auto.assign = FALSE, warnings = FALSE) 
   # Tranform it to monthly returns using the periodReturn function from quantmod
-  data <- periodReturn(symbol, period = 'monthly', subset=paste(start_year, "::", sep = ""), 
-                       type = 'log')
+  data <- periodReturn(symbol, period = 'monthly', type = 'log')
   
   # Let's rename the column of returns to something intuitive because the column name is what
   # will eventually be displayed on the time series graph.
