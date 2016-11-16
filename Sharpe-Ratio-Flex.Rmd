@@ -44,21 +44,21 @@ fluidRow(
   column(7,
   textInput("stock1", "Stock 1", "GOOG")),
   column(5,
-  numericInput("w1", "% weight", 25, min = 1, max = 100))
+  numericInput("w1", "Portf. %", 25, min = 1, max = 100))
 )  
 
 fluidRow(
   column(7,
   textInput("stock2", "Stock 2", "JPM")),
   column(5,
-  numericInput("w2", "% weight", 25, min = 1, max = 100))
+  numericInput("w2", "Portf. %", 25, min = 1, max = 100))
 )
 
 fluidRow(
   column(7,
   textInput("stock3", "Stock 3", "AMZN")),
   column(5,
-  numericInput("w3", "% weight", 50, min = 1, max = 100))
+  numericInput("w3", "Portf. %", 50, min = 1, max = 100))
 )
 
 helpText("Choose a start date and risk-free rate")
@@ -104,21 +104,6 @@ sp500_sharpe_ratio <- reactive ({
 })
 ```
 
-Individual Stocks
-========================================
-
-### Monthly Returns
-
-```{r, message = FALSE}
-dygraphOutput("dygraphStocks")
-
-output$dygraphStocks <- renderDygraph({
-  dygraph(individual_stocks()) %>% 
-    dyAxis("y", label = "%") %>% 
-    dyOptions(colors = RColorBrewer::brewer.pal(3, "Set2")) 
-})
-```
-
 Portfolio Performance
 =====================================  
 
@@ -132,7 +117,8 @@ dygraphOutput("dygraphDollarGrowth")
 
 output$dygraphDollarGrowth<-renderDygraph({
   dygraph(portfolio_growth(), main = "Growth of $1 Invested in Your Portfolio") %>%
-    dyAxis("y", label = "$")
+    dyAxis("y", label = "$") %>%
+  dyOptions(axisLineWidth = 1.5, fillGraph = TRUE, drawGrid = TRUE)
 })
 
 ```
@@ -167,26 +153,51 @@ Row {data-height=350}
 Briefly, the Sharpe Ratio is the mean of the excess monthly returns above the risk-free rate, divided by the standard deviation of the excess monthly returns above the risk-free rate.  This is the formulation of the Sharpe Ratio as of 1994; if we wished to use the original formulation from 1966, the denominator would be the standard deviation of portfolio monthly returns. Learn more [here](http://web.stanford.edu/~wfsharpe/art/sr/sr.htm).<br><br>
 In other words, the Sharpe Ratio measures excess returns per unit of volatility, where we take the standard deviation to represent portfolio volatility. The Sharpe Ratio was brought to us by Bill Sharpe - arguably the most important economist for modern investment management as the creator of the Sharpe Ratio, CAPM and Financial Engines, a forerunner of the robo movement.
 
+
+Individual Stocks
+========================================
+
+### Monthly Returns Line Chart
+
+```{r, message = FALSE}
+dygraphOutput("dygraphStocksline")
+
+output$dygraphStocksline <- renderDygraph({
+  dygraph(individual_stocks(), main = "Monthly Percentage Returns") %>% 
+    dyAxis("y", label = "%") %>% 
+    dyOptions(colors = RColorBrewer::brewer.pal(3, "Set2")) 
+})
+```
+
 Sharpe Ratio
 =======================================
 
-### Sharpe Ratio
+Row {data-height=200}
+-----------------------------------------------------------------------
+
+### The Sharpe Ratio of Your Portfolio
 
 ```{r}
-valueBoxOutput("approvalBox")
-output$approvalBox<-renderValueBox({
-  valueBox(value = sharpe_ratio(), caption = "The Sharpe Ratio", icon = "fa-line-chart", color = "info")
+valueBoxOutput("approvalBox3")
+output$approvalBox3<-renderValueBox({
+  valueBox(value = sharpe_ratio(), icon = "fa-line-chart", color = "primary")
 })
 ```
 
-### Some Background
+### Sharpe Ratio of S&P500 in same time period
+
+```{r}
+
+valueBoxOutput("approvalBox4")
+output$approvalBox4<-renderValueBox({
+  valueBox(value = sp500_sharpe_ratio(), icon = "fa-line-chart", color = "primary")
+})
+```
+
+Row {data-height=350}
+-----------------------------------------------------------------------
+
+### Background on the Sharpe Ratio
 
 Briefly, the Sharpe Ratio is the mean of the excess monthly returns above the risk-free rate, divided by the standard deviation of the excess monthly returns above the risk-free rate.  This is the formulation of the Sharpe Ratio as of 1994; if we wished to use the original formulation from 1966, the denominator would be the standard deviation of portfolio monthly returns. Learn more [here](http://web.stanford.edu/~wfsharpe/art/sr/sr.htm).<br><br>
 In other words, the Sharpe Ratio measures excess returns per unit of volatility, where we take the standard deviation to represent portfolio volatility. The Sharpe Ratio was brought to us by Bill Sharpe - arguably the most important economist for modern investment management as the creator of the Sharpe Ratio, CAPM and Financial Engines, a forerunner of the robo movement.
-
-### Sharpe Ratio
-```{r}
-renderText({
-  paste("The Sharpe Ratio of this portfolio is", sharpe_ratio(), sep = " ")
-})
-```
