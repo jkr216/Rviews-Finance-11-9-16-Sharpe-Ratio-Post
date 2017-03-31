@@ -1,0 +1,77 @@
+---
+title: "Facebook Report"
+output: 
+  pdf_document
+---
+# Report for Facebook on `r Sys.Date()`
+
+## Summary{.tabset}
+
+```{r setup, echo = FALSE, message = FALSE}
+
+library(quantmod)
+library(DT)
+library(dygraphs)
+library(forecast)
+library(highcharter)
+library(dygraphs)
+
+# import the price history data
+prices <- round(getSymbols("FB", auto.assign = FALSE), 2)
+close <- Cl(last(prices))
+open <- Op(last(prices))
+
+recent <- last(prices, n=90)
+recent_nv <- recent[,-5]
+
+```
+
+The stock closed `r ifelse(close>open,'up','down')` at `r close` dollars per share yesterday.
+
+### Price History
+
+The chart below is made with the `quantmod` and `highcharter` R packages. An API returns all of the price history based on the stock tick symbol provided as a parameter. The candlestick chart is a default function from highcharter, as is the the Economist theme.
+
+
+```{r, echo = FALSE}
+
+highchart() %>% 
+   hc_yAxis_multiples(
+    list(title = list(text = NULL), height = "75%", top = "0%"),
+    list(title = list(text = NULL), height = "15%", top = "80.5%", opposite = TRUE)
+  ) %>%
+  hc_add_series_ohlc(prices, yAxis=0, name= "FB") %>% 
+  hc_add_series_xts(prices[,paste0("FB",".Volume")], name="Volume", type="column", yAxis=1) %>% 
+  hc_add_theme(hc_theme_economist())
+```
+
+### Raw Data
+
+The table below displays the daily price data for the stock. A concise, interactive table is created with the `DT` package. 
+
+  
+```{r, echo = FALSE}
+df <- as.data.frame(recent)
+df[,paste0("FB", ".Volume")] <- df[,paste0("FB", ".Volume")]/1000000 
+datatable(df) %>% 
+  formatCurrency(c(paste0("FB", ".Open"), paste0("FB", ".High"), paste0("FB", ".Low"), paste0("FB",".Close"),
+                  paste0("FB", ".Adjusted")), digits=2) %>% 
+  formatRound(c(paste0("FB", ".Volume")), digits=0)
+```
+
+## Model
+
+```{r, warning = FALSE, message = FALSE}
+m <- arima(recent[,1], c(3,1,2))
+f <- forecast(m,7)
+```
+
+The forecast for tomorrow is `r round(as.numeric(f$mean)[1],2)` dollars.
+
+This model is fit with the arima function in the forecast package. A 3,1,2 ARIMA model is used though in practice any range of models could be used.
+
+```{r, warning = FALSE, message = FALSE}
+plot(forecast(m,7), main="")
+```
+
+

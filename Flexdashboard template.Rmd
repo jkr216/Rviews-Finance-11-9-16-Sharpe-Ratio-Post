@@ -1,0 +1,50 @@
+---
+title: "Dygraphs Linked Time Series"
+output: 
+  flexdashboard::flex_dashboard:
+    #vertical_layout: scroll
+    source_code: embed
+---
+
+```{r setup, include=FALSE}
+library(dygraphs)
+library(quantmod)
+library(flexdashboard)
+
+getSymbols(c("GOOG", "FB", "NFLX", "AMZN"), from = "2014-01-01", auto.assign=TRUE)
+```
+
+First Page 
+=================================
+
+### Amazon
+```{r}
+dygraph(AMZN[,2:4], group = "stocks") %>% 
+  dySeries(c("AMZN.Low", "AMZN.Close", "AMZN.High"), label = "GOOG")
+```
+
+### Google
+
+```{r}
+dygraph(GOOG[,2:4], group = "stocks") %>% 
+  dySeries(c("GOOG.Low", "GOOG.Close", "GOOG.High"), label = "GOOG")
+```
+
+Second Page 
+=================================
+
+### Facebook
+
+```{r}
+dygraph(FB[,2:4], group = "stocks") %>% 
+  dySeries(c("FB.Low", "FB.Close", "FB.High"), label = "FB")
+```
+
+
+### Netflix
+
+```{r}
+dygraph(NFLX[,2:4], group = "stocks") %>% 
+  dySeries(c("NFLX.Low", "NFLX.Close", "NFLX.High"), label = "NFLX")
+```
+

@@ -1,0 +1,122 @@
+---
+title: "Forecast"
+output:
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    source_code: embed
+params:
+  stock1: 
+    label: "Stock 1"
+    value: "GOOG"
+    input: text
+  stock2: 
+    label: "Stock 2"
+    value: "AMZN"
+    input: text
+  stock3: 
+    label: "Stock 3"
+    value: "FB"
+    input: text
+  w1: 
+    label: "Weight 1"
+    value: 25
+    input: numeric
+  w2: 
+    label: "Weight 2"
+    value: 25
+    input: numeric
+  w3: 
+    label: "Weight 3"
+    value: 50
+    input: numeric
+  date:
+    label: "Start Date"
+    value: "2010-01-01"
+    input: date
+---
+
+```{r setup, message = FALSE}
+library(flexdashboard)
+library(PerformanceAnalytics)
+library(quantmod)
+library(dygraphs)
+library(forecast)
+
+
+# Function to calculate monthly returns on a stock 
+monthly_stock_returns <- function(ticker, start_date) {
+  # Download the data from Yahoo finance
+  symbol <- getSymbols(ticker, src = 'yahoo', from = start_date, auto.assign = FALSE,
+                       warnings = FALSE) 
+  # Tranform it to monthly returns using the periodReturn function from quantmod
+  data <- periodReturn(symbol, period = 'monthly', type = 'log')
+  
+  # Let's rename the column of returns to something intuitive because the column name is what
+  # will eventually be displayed on the time series graph
+  colnames(data) <- as.character(ticker)
+  
+  # We want to be able to work with the xts objects that result from this function 
+  # so let's explicitly put them to the global environment with an easy to use 
+  # name, the stock ticker
+  assign(ticker, data, .GlobalEnv)
+}
+```
+  
+```{r, message = FALSE, include = FALSE}
+# Pass in our parameters
+  date <- params$date
+  stock1 <- monthly_stock_returns(params$stock1, date)
+  stock2 <- monthly_stock_returns(params$stock2, date)
+  stock3 <- monthly_stock_returns(params$stock3, date)
+  individual_stocks <- merge.xts(stock1, stock2, stock3)
+  rfr <- as.numeric(params$rfr)/100
+  w <- c(params$w1/100, params$w2/100, params$w3/100)
+  
+  portfolio_growth <- Return.portfolio(individual_stocks, weights = w, wealth.index = TRUE)
+  
+```
+
+
+### Actual and Forecasted Dollar Growth
+
+```{r}
+   
+forecasted <- forecast(portfolio_growth, h = 12)
+  
+forecast_dataframe <- data.frame(
+                        date = seq(Sys.Date(), 
+                        by = "months",
+                        length.out = 12),
+                        Forecast = forecasted$mean,
+                        Hi_95 = forecasted$upper[,2],
+                        Lo_95 = forecasted$lower[,2])
+  
+forecast_xts <- xts(forecast_dataframe[,-1], order.by = forecast_dataframe[,1])
+  
+combined_xts <- cbind(portfolio_growth, forecast_xts)
+
+  # Add a nicer name for the first column.
+
+colnames(combined_xts)[1] <- "Actual"
+  
+start_date <- as.Date(params$date)
+
+end_date <- tail(seq(Sys.Date(), by = "months", length = 12), 1)
+
+dygraph(combined_xts, 
+        main = paste("Historical and Forecasted Growth of $1 Invested in ", 
+                       params$stock1, " + ", params$stock2, " + ", params$stock3)) %>%
+  # Add the actual series
+  dySeries("Actual", label = "Actual") %>%
+  # Add the three forecasted series
+  dySeries(c("Lo_95", "Forecast", "Hi_95")) %>% 
+  #a range selector to focus on the forecasted
+  dyRangeSelector(dateWindow = c(start_date, end_date)) %>% 
+  dyEvent("2016-11-07", "Trump!", labelLoc = "bottom")
+
+```
+  
+
+
+
+
