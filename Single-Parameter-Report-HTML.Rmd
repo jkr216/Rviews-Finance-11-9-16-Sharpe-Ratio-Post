@@ -1,5 +1,5 @@
 ---
-title: "FANG Collection"
+#title: "Parameterized Report"
 output: 
   html_document
 params:

@@ -1,5 +1,5 @@
 ---
-title: "Sharpe Ratio Report"
+#title: "Sharpe Ratio Report"
 output:
   flexdashboard::flex_dashboard:
     #vertical_layout: scroll
@@ -75,7 +75,7 @@ monthly_stock_returns <- function(ticker, start_date) {
 }
 ```
 
-Report for `r params$portfolioName`
+Sharpe Ratio Report for `r params$portfolioName`
 =================================
 
 ### Portfolio Performance
@@ -133,12 +133,6 @@ valueBox(value = portfolio_sharpe_ratio, icon = "fa-line-chart", color = "primar
 ```{r}
   valueBox(value = sp500_sharpe_ratio, icon = "fa-line-chart", color = "primary")
 ```
-
-Row {data-height = 200}
------------------------------------------------------------------------
-
-### Some thoughts
-Analysis
 
 
 Individual Returns
