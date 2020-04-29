@@ -16,10 +16,11 @@ library(dygraphs)
 library(shiny)
 
 
+
 # Function to calculate monthly returns on a stock 
 monthly_stock_returns <- function(ticker, start_year) {
   # Download the data from Yahoo finance
-  symbol <- getSymbols(ticker, src = 'yahoo', from = start_year, auto.assign = FALSE,
+  symbol <- getSymbols(ticker, src = 'google', from = start_year, auto.assign = FALSE,
                        warnings = FALSE) 
   # Tranform it to monthly returns using the periodReturn function from quantmod
   data <- periodReturn(symbol, period = 'monthly', type = 'log')
@@ -85,7 +86,7 @@ individual_stocks <- reactive({
 portfolio_growth <- reactive({
   w <- c(input$w1/100, input$w2/100, 1-(input$w1+input$w2)/100)
   dollar_growth <- Return.portfolio(individual_stocks(), weights = w, wealth.index = TRUE)
-})
+}) 
 
 sharpe_ratio <- reactive({
   w1 <- c(input$w1/100, input$w2/100, 1-(input$w1+input$w2)/100)
@@ -117,7 +118,7 @@ Row {data-height=600}
 ##dygraph chunk
 dygraphOutput("dygraphDollarGrowth")
 
-output$dygraphDollarGrowth<-renderDygraph({
+output$dygraphDollarGrowth <- renderDygraph({
   dygraph(portfolio_growth(), main = "Growth of $1 Invested in Your Portfolio") %>%
     dyAxis("y", label = "$") %>%
     dyOptions(axisLineWidth = 1.5, fillGraph = TRUE, drawGrid = TRUE)
@@ -141,7 +142,7 @@ output$approvalBox1<-renderValueBox({
 ```{r}
 
 valueBoxOutput("approvalBox2")
-output$approvalBox2<-renderValueBox({
+output$approvalBox2 <- renderValueBox({
   valueBox(value = sp500_sharpe_ratio(), icon = "fa-line-chart", color = "primary")
 })
 ```

@@ -1,0 +1,418 @@
+---
+title: "Sharpe Ratio Book Excerpt"
+output: html_document
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(message=FALSE, 
+                      warning=FALSE,
+                      comment = NA,
+                      fig.pos = 'h', 
+                      out.extra = '',
+                      out.width = "100%", 
+                      fig.align = "left")
+
+library(tidyverse)
+library(tidyquant)
+library(highcharter)
+library(timetk)
+library(tibbletime)
+library(RcppRoll)
+library(scales)
+library(broom)
+```
+
+# Portfolio Theory {-}
+
+In this section we devote three chapters to the relationship between risk and return.  These topics are the most theoretical that we have covered yet, but we will not be delving into the theory. Instead, we will focus on code flows.
+
+First, we will discuss the Sharpe Ratio, a measure of the return versus risk ratio of a portfolio.
+
+Then, we will look at the Capital Asset Pricing Model (CAPM) and specifically how to calculate the market beta for our assets and portfolio. This will be an introduction to simple linear regression.
+
+We will conclude with an exploration of the Fama-French multi-factor model, which also serves as an introduction to multiple linear regression.
+
+If you wish to study further into these topics, see Sharpe's 1964 article, "Asset Prices: A Theory of Market Equilibrium under Conditions of Risk",[^5]  Sharpe's 1994 article "The Sharpe Ratio",[^6] and "Common risk factors in the returns on stocks and bonds"[^7] by Fama and French. 
+
+[^5]: Sharpe, William F.. (1964). "Asset Prices: A Theory of Market Equilibrium under Conditions of Risk". The Journal of Finance, Vol. 19, No. 3 pp. 425-442. 
+
+[^6]: Sharpe, William F. (1994). "The Sharpe Ratio". The Journal of Portfolio Management. 21 (1): 49–58.
+
+[^7]: Fama, Eugene and French, Kenneth."Common risk factors in the returns on stocks and bonds" Journal of Financial Economics Volume 33, Issue 1, February 1993, Pages 3-56.
+
+From a general data science perspective, we have covered data import and wrangling in the first section, descriptive statistics in the second section, and this section is devoted to the modeling and evaluating of our data.   
+
+We will accomplish the following in this section:
+
+1) calculate and visualize the Sharpe Ratio and the rolling Sharpe Ratio 
+2) calculate and visualize CAPM beta
+3) calculate and visualize the Fama-French 3-Factor Model and the rolling Fama-French 3-Factor model
+4) build Shiny apps for Sharpe Ratio, CAPM beta and rolling Fama-French model
+
+We will be working with the portfolio returns objects that were created in the *Returns* section. If you are starting a new R session and want to run the code to build those objects, navigate here: 
+
+www.reproduciblefinance.com/code/get-returns/ 
+
+# Sharpe Ratio
+
+The Sharpe Ratio is defined as the mean of the excess monthly portfolio returns above the risk-free rate, divided by the standard deviation of the excess monthly portfolio returns above the risk-free rate.  This is the formulation of the Sharpe Ratio as of 1994; if we wished to use the original formulation from 1966 the denominator would be the standard deviation of all the monthly portfolio returns. 
+
+The Sharpe Ratio measures excess returns per unit of risk, where we again take the standard deviation to represent portfolio risk. The Sharpe Ratio was brought to us by Bill Sharpe - arguably the most important economist for modern investment management as the creator of the Sharpe Ratio, CAPM (which we will cover later) and Financial Engines, a forerunner of today's robo-advisor movement.
+
+The Sharpe Ratio equation is as follows:
+
+$$Sharpe~Ratio={(\overline{R_{p}-R_{f}})}/\sigma_{excess}$$
+
+The numerator is the mean excess return above the risk-free rate and the denominator is the standard deviation of those excess returns.  In other words, it is the ratio of return to risk and so a higher Sharpe Ratio indicates a 'better' portfolio.
+
+We will start with the built-in function from the `xts` world and will look at the by-hand equation as part of the tidyverse.
+
+## Sharpe Ratio in the xts world 
+
+For any work with the Sharpe Ratio, we first must choose a risk-free rate (hereafter RFR) and will use .3%.
+
+```{r}
+rfr <- .0003
+```
+
+From there, calculating the Sharpe Ratio in the `xts` world is almost depressingly convenient. We call `SharpeRatio(portfolio_returns_xts, Rf = rfr)`, passing our portfolio returns and risk-free rate to the built-in function from `PerformanceAnalytics`. 
+
+```{r}
+sharpe_xts <- 
+  SharpeRatio(portfolio_returns_xts_rebalanced_monthly, 
+              Rf = rfr,
+              FUN = "StdDev") %>% 
+  `colnames<-`("sharpe_xts")
+
+sharpe_xts
+```
+
+
+## Sharpe Ratio in the tidyverse 
+
+For our tidyverse example, we will implement the Sharpe Ratio equation via pipes and `dplyr`.
+
+We start with our object `portfolio_returns_dplyr_byhand` and then run `summarise(ratio = mean(returns - rfr)/sd(returns - rfr))`, which maps to the equation for the Sharpe Ratio. 
+
+
+```{r}
+sharpe_tidyverse_byhand <- 
+  portfolio_returns_dplyr_byhand %>% 
+  summarise(sharpe_dplyr = mean(returns - rfr)/
+              sd(returns - rfr))
+
+sharpe_tidyverse_byhand
+```
+
+## Sharpe Ratio in the tidyquant world
+
+`tidyquant` allows us to wrap the `SharpeRatio()` function inside the `tq_performance()` function.
+
+```{r}
+sharpe_tq <- 
+  portfolio_returns_tq_rebalanced_monthly %>%
+  tq_performance(Ra = returns,
+                 performance_fun = SharpeRatio,
+                 Rf = rfr,
+                 FUN = "StdDev") %>%
+  `colnames<-`("sharpe_tq")
+
+```
+
+Let's compare our 3 Sharpe objects. 
+
+```{r}
+
+sharpe_tq %>% 
+  mutate(tidy_sharpe = sharpe_tidyverse_byhand$sharpe_dplyr,
+         xts_sharpe = sharpe_xts)
+```
+
+We have consistent results from `xts`, `tidyquant` and our by-hand piped calculation.  Next, we compare to the Sharpe Ratio of the S&P500 in the same time period.
+
+```{r}
+market_returns_xts <- 
+    getSymbols("SPY", 
+               src = 'yahoo', 
+               from = "2012-12-31", 
+               to = "2017-12-31", 
+               auto.assign = TRUE, 
+               warnings = FALSE) %>% 
+    map(~Ad(get(.))) %>% 
+    reduce(merge) %>%
+    `colnames<-`("SPY") %>% 
+    to.monthly(indexAt = "lastof", 
+               OHLC = FALSE)
+
+market_sharpe <- 
+  market_returns_xts %>%
+  tk_tbl(preserve_index = TRUE, 
+         rename_index = "date") %>%
+    mutate(returns = 
+             (log(SPY) - log(lag(SPY)))) %>% 
+    na.omit() %>% 
+    summarise(ratio = 
+                mean(returns - rfr)/sd(returns - rfr))
+
+market_sharpe$ratio
+```
+
+Our portfolio has *underperformed* the market during our chosen time period. Welcome to the challenges of  portfolio construction during a raging bull market.  
+
+## Visualizing Sharpe Ratio 
+
+Before visualizing the actual Sharpe, we will get a sense for what proportion of our portfolio returns exceeded the RFR.
+
+When we originally calculated Sharpe by-hand in the tidyverse, we used `summarise` to create one new cell for our end result. The code was `summarise(ratio = mean(returns - rfr)/sd(returns - rfr)) `.  
+
+Now, we will make two additions to assist in our data visualization. We will add a column for returns that fall below the risk-free rate with `mutate(returns_below_rfr = ifelse(returns < rfr, returns, NA))` and add a column for returns above the risk-free rate with `mutate(returns_above_rfr = ifelse(returns > rfr, returns, NA))`. 
+
+This is not necessary for calculating the Sharpe Ratio, but we will see how it illustrates a benefit of doing things by-hand with `dplyr`: if we want to extract or create certain data transformations, we can add it to the piped code flow. 
+
+```{r}
+
+sharpe_byhand_with_return_columns <- 
+  portfolio_returns_tq_rebalanced_monthly %>% 
+  mutate(ratio = 
+           mean(returns - rfr)/sd(returns - rfr)) %>%  
+  mutate(returns_below_rfr = 
+           if_else(returns < rfr, returns, as.numeric(NA))) %>%
+  mutate(returns_above_rfr = 
+           if_else(returns > rfr, returns, as.numeric(NA))) %>% 
+  mutate_if(is.numeric, funs(round(.,4)))
+
+sharpe_byhand_with_return_columns %>% 
+  head(3)
+
+```
+
+Now we can create a scatter plot in order  to quickly grasp how many of our returns are above the RFR and how many are below the RFR. 
+
+We will create green points for returns above RFR with `geom_point(aes(y = returns_above_RFR), colour = "green")` and red points for returns below RFR with `geom_point(aes(y = returns_below_rfr), colour = "red") `.  
+
+We also add a blue vertical line at November of 2016 for the election and a horizontal purple dotted line at the RFR.
+
+```{r, fig.cap = "Scatter Returns Around Risk Free Rate"}
+sharpe_byhand_with_return_columns %>% 
+  ggplot(aes(x = date)) +
+  geom_point(aes(y = returns_below_rfr), 
+             colour = "red") +
+  geom_point(aes(y = returns_above_rfr), 
+             colour = "green") + 
+  geom_vline(xintercept = 
+               as.numeric(as.Date("2016-11-30")), 
+             color = "blue") +
+  geom_hline(yintercept = rfr, 
+             color = "purple", 
+             linetype = "dotted") +
+  annotate(geom = "text", 
+           x = as.Date("2016-11-30"), 
+           y = -.04, 
+           label = "Election", 
+           fontface = "plain", 
+           angle = 90, 
+           alpha = .5, 
+           vjust =  1.5) +
+  ylab("percent monthly returns") +
+  scale_y_continuous(breaks = pretty_breaks(n = 10)) +
+  scale_x_date(breaks = pretty_breaks( n = 8))
+```
+
+
+
+Have a look at Figure 7.1 and notice that there are zero returns below the RFR after the election in 2016. 
+Next we will build a histogram of the distribution of returns with `geom_histogram(alpha = 0.25, binwidth = .01, fill = "cornflowerblue")` and add a vertical line at the RFR. 
+
+```{r, fig.cap = "Returns Histogram with Risk-Free Rate ggplot"} 
+sharpe_byhand_with_return_columns %>% 
+  ggplot(aes(x = returns)) +
+  geom_histogram(alpha = 0.45, 
+                 binwidth = .01, 
+                 fill = "cornflowerblue") +
+  geom_vline(xintercept = rfr, 
+             color = "green") +
+  annotate(geom = "text", 
+           x = rfr,
+           y = 13, 
+           label = "rfr", 
+           fontface = "plain", 
+           angle = 90, 
+           alpha = .5, 
+           vjust =  1)
+
+```
+
+Figure 7.2 shows the distribution of returns in comparison to the risk-free rate, but
+we have not visualized the actual Sharpe Ratio yet.  
+
+Similar to standard deviation, skewness and kurtosis of returns, it helps to visualize the Sharpe Ratio of our portfolio in comparison to other assets.
+
+```{r, fig.cap = "Sharpe versus Standard Deviation"}
+asset_returns_long %>% 
+  summarise(stand_dev = sd(returns),
+            sharpe = mean(returns - rfr)/
+              sd(returns - rfr))%>% 
+  add_row(asset = "Portfolio",
+    stand_dev = 
+      portfolio_sd_xts_builtin[1],
+    sharpe = 
+      sharpe_tq$sharpe_tq) %>% 
+  ggplot(aes(x = stand_dev, 
+             y = sharpe, 
+             color = asset)) +
+  geom_point(size = 2) +
+  geom_text(
+   aes(x = 
+    sd(portfolio_returns_tq_rebalanced_monthly$returns), 
+     y = 
+    sharpe_tq$sharpe_tq + .02, 
+         label = "Portfolio")) +
+  ylab("Sharpe Ratio") +
+  xlab("standard deviation") +
+  ggtitle("Sharpe Ratio versus Standard Deviation") +
+  # The next line centers the title
+  theme_update(plot.title = element_text(hjust = 0.5))
+```
+
+Figure 7.3 indicates that the S&P500 again seems to dominate our portfolio, though it does have slightly more risk. 
+
+That's interesting to observe but, just as with standard deviation, skewness and kurtosis, these overall numbers might obscure important periods of fluctuation in our data. We can solve that by working with the rolling Sharpe Ratio.
+
+## Rolling Sharpe Ratio in the xts world 
+
+Very similar to how we calculated rolling standard deviation, skewness and kurtosis, our `xts` work starts with `rollapply()`.
+
+Note that we use a more wordy function format here because we need to pass in the argument `FUN = "StdDev"`. Try running the code without that argument and review the error. 
+
+```{r}
+window <- 24
+
+rolling_sharpe_xts <- 
+  rollapply(portfolio_returns_xts_rebalanced_monthly, 
+            window, 
+            function(x) 
+            SharpeRatio(x, 
+                        Rf = rfr, 
+                        FUN = "StdDev")) %>% 
+  na.omit() %>% 
+  `colnames<-`("xts")
+
+```
+
+## Rolling Sharpe Ratio with the tidyverse and tibbletime 
+
+We can combine the tidyverse and `tibbletime` to calculate the rolling Sharpe Ratio calculation starting from a `tibble`.
+
+We first write our own function by combining `rollify()` and `ratio = mean(returns - rfr)/sd(returns - rfr)`. 
+
+Notice we still pass in our `rfr` and `window` variables from previous code chunks.
+
+```{r}
+# Creat rolling function.
+sharpe_roll_24 <- 
+  rollify(function(returns) {
+    ratio = mean(returns - rfr)/sd(returns - rfr)
+    }, 
+window = window)
+```
+
+Next we pass our portfolio data object to that rolling function, via `mutate()`.  
+  
+```{r}  
+rolling_sharpe_tidy_tibbletime <- 
+  portfolio_returns_dplyr_byhand %>%
+  as_tbl_time(index = date) %>% 
+  mutate(tbltime_sharpe = sharpe_roll_24(returns)) %>% 
+  na.omit() %>%
+  select(-returns)
+
+```
+
+
+## Rolling Sharpe Ratio with tidyquant 
+
+To calculate the rolling Sharpe Ratio with `tidyquant`, we first build a custom function where we can specify the RFR and an argument to the `SharpeRatio()` function. Again, our rolling Sharpe Ratio work is more complex than previous rolling calculations.
+
+```{r}
+sharpe_tq_roll <- function(df){
+  SharpeRatio(df, 
+              Rf = rfr, 
+              FUN = "StdDev")
+}
+```
+
+It is necessary to build that custom function because we would not be able to specify `FUN = "StdDev"` otherwise. 
+
+Now we use `tq_mutate()` to wrap `rollapply()` and our custom function, and apply them to `portfolio_returns_tq_rebalanced_monthly`. 
+
+```{r}
+
+rolling_sharpe_tq <-
+portfolio_returns_tq_rebalanced_monthly %>% 
+tq_mutate(
+        select     = returns,
+        mutate_fun = rollapply, 
+        width      = window,
+        align      = "right",
+        FUN        = sharpe_tq_roll,
+        col_rename = "tq_sharpe"
+    ) %>% 
+  na.omit()
+```
+
+Now we can compare our 3 rolling Sharpe Ratio objects and confirm consistency. 
+
+```{r}
+rolling_sharpe_tidy_tibbletime %>% 
+ mutate(xts_sharpe = coredata(rolling_sharpe_xts),
+        tq_sharpe = rolling_sharpe_tq$tq_sharpe ) %>% 
+  head(3)
+```
+
+## Visualizing the Rolling Sharpe Ratio 
+
+Finally, we can start to visualize the Sharpe Ratio across the history of the portfolio.
+
+We start with `highcharter` and `xts`. 
+
+```{r, eval = FALSE}
+highchart(type = "stock") %>%
+  hc_title(text = "Rolling  24-Month Sharpe") %>%
+  hc_add_series(rolling_sharpe_xts, 
+                name = "sharpe", 
+                color = "blue") %>%
+  hc_navigator(enabled = FALSE) %>% 
+  hc_scrollbar(enabled = FALSE) %>% 
+  hc_add_theme(hc_theme_flat()) %>%
+  hc_exporting(enabled = TRUE)
+```
+
+```{r, echo = FALSE, fig.cap = "Rolling Sharpe highcharter"}
+knitr::include_graphics("snapshots/hc-rolling-sharpe.png")
+
+```
+
+
+Figure 7.4 is confirming a trend that we noticed previously, that this portfolio has done quite well since November of 2016. 
+
+If we wish to visualize rolling Sharpe with `ggplot`, we can convert that xts object to a data frame and then pipe it, or we can start with one of our tidy `tibble` objects. The flow below starts with `xts` and converts to `tibble` with `tk_tbl()` so that we can get familiar with a new function. 
+```{r, fig.cap = "Rolling Sharpe ggplot"}
+rolling_sharpe_xts %>% 
+  tk_tbl(preserve_index = TRUE, 
+         rename_index = "date") %>%
+  rename(rolling_sharpe = xts) %>% 
+  ggplot(aes(x = date, 
+             y = rolling_sharpe)) +
+  geom_line(color = "cornflowerblue") +
+  ggtitle("Rolling 24-Month Sharpe Ratio") +
+  labs(y = "rolling sharpe ratio") +
+  scale_x_date(breaks = pretty_breaks(n = 8)) +
+   theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+Figure 7.5 is showing the same data as Figure 7.4 but on a slightly more compressed scale. Would the scale variation lead us or an end user to think differently about this portfolio? 
+
+Those rolling charts allows us to see how our portfolio Sharpe Ratio decreased steadily into 2016, bottomed out, and then started to grind higher. 
+
+Let's take all this work and make it accessible via Shiny! 

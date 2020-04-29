@@ -1,8 +1,7 @@
 ---
-output:
-  flexdashboard::flex_dashboard:
-    orientation: rows
-    source_code: embed
+title: "Sharpe Ratio PDF Report"
+output: pdf_document
+#always_allow_html: yes
 params:
   portfolioName:
     label: "title"
@@ -45,14 +44,12 @@ params:
 ---
 
 
-
-```{r setup, message = FALSE}
+```{r setup, message = FALSE,echo = FALSE, warning = FALSE}
 library(flexdashboard)
 library(PerformanceAnalytics)
 library(quantmod)
 library(dygraphs)
-library(forecast)
-
+library(webshot)
 
 # Function to calculate monthly returns on a stock 
 monthly_stock_returns <- function(ticker, start_date) {
@@ -73,12 +70,9 @@ monthly_stock_returns <- function(ticker, start_date) {
 }
 ```
 
-Sharpe Ratio Report for `r params$portfolioName`
-=================================
+Report for `r params$portfolioName`
 
-### Portfolio Performance
-  
-```{r, message = FALSE}
+```{r, message = FALSE, echo = FALSE, warning = FALSE}
 # Pass in our parameters
   date <- params$date
   stock1 <- monthly_stock_returns(params$stock1, date)
@@ -99,17 +93,11 @@ Sharpe Ratio Report for `r params$portfolioName`
   sp500_monthly <- Return.portfolio(sp500)
   sp500_sharpe<- round(SharpeRatio(sp500_monthly, Rf = rfr), 4)
   sp500_sharpe_ratio <- sp500_sharpe[1,]
-  
-
 ```
 
-Row 
------------------------------------------------------------------------
+Growth of $1
 
-### Growth of $1
-
-
-```{r}
+```{r, echo = FALSE, warning = FALSE}
 
   dygraph(portfolio_growth, 
           main = paste("Growth of $1 Invested in ", 
@@ -119,32 +107,35 @@ Row
 
 ```
 
-Row {data-height = 200}
------------------------------------------------------------------------
+We have assumed a risk-free rate of `r params$rfr`%. 
 
-### The Sharpe Ratio of Your Portfolio
+The Sharpe Ratio of the constructed portfolio is: 
 
-```{r}
-valueBox(value = portfolio_sharpe_ratio, icon = "fa-line-chart", color = "primary")
+```{r, echo = FALSE, warning = FALSE}
+
+
+print(portfolio_sharpe_ratio)
+
 ```
 
-### Sharpe Ratio of S&P500 in same time period
+Sharpe Ratio of S&P500 in same time period is.   
 
-```{r}
-  valueBox(value = sp500_sharpe_ratio, icon = "fa-line-chart", color = "primary")
+```{r, echo = FALSE, warning = FALSE}
+
+  print(sp500_sharpe_ratio)
 ```
 
+Let's compare those ratios and think about which portfolio offers a better risk/return profile.
 
-Individual Returns
-==========================
+Monthly Returns Line Chart
 
-### Monthly Returns Line Chart
-
-```{r, message = FALSE}
+```{r, echo = FALSE, warning = FALSE}
 
   dygraph(individual_stocks, main = "Monthly Percentage Returns") %>% 
     dyAxis("y", label = "%") %>% 
     dyOptions(colors = RColorBrewer::brewer.pal(3, "Set2")) 
 
 ```
+
+
 
